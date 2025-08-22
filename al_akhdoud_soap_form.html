@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sports SOAP Form - Al-Akhdoud Club</title>
+    <style>
+        /* Same styles as before */
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header img { max-width: 150px; }
+        h1 { color: #333; margin: 10px 0; }
+        h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
+        label { display: block; margin: 10px 0 5px; font-weight: bold; }
+        input, textarea { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        textarea { height: 100px; resize: vertical; }
+        button { background-color: #3498db; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-right: 10px; }
+        button:hover { background-color: #2980b9; }
+        .section { margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background-color: #3498db; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .player-data { margin-top: 30px; }
+        #detailsModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        #modalContent { background-color: white; margin: 15% auto; padding: 20px; width: 70%; max-height: 70%; overflow-y: auto; border-radius: 5px; }
+        #soapForm { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="logo.png" alt="Al-Akhdoud Club Logo" onerror="this.src='https://via.placeholder.com/150?text=No+Logo';"> <!-- Fallback image if logo fails -->
+            <h1>Sports SOAP Form - Al-Akhdoud Club</h1>
+        </div>
+
+        <!-- Player List Page -->
+        <div id="playerList" class="section">
+            <h2>Player Management</h2>
+            <label for="newPlayerName">Add New Player:</label>
+            <input type="text" id="newPlayerName" placeholder="Enter player name">
+            <button onclick="addPlayer()">Add Player</button>
+
+            <label for="playerFilter">Filter by Player Name:</label>
+            <input type="text" id="playerFilter" placeholder="Enter player name to filter">
+            <table id="playerTable">
+                <thead>
+                    <tr>
+                        <th>Player Name</th>
+                        <th>Evaluation Date</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="playerTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- SOAP Form Page -->
+        <div id="soapForm" class="section">
+            <h2>SOAP Evaluation</h2>
+            <label for="playerName">Player Name:</label>
+            <input type="text" id="playerName" name="playerName" readonly>
+
+            <label for="playerAge">Age:</label>
+            <input type="number" id="playerAge" name="playerAge">
+
+            <label for="playerPosition">Position on Field:</label>
+            <input type="text" id="playerPosition" name="playerPosition">
+
+            <label for="evalDate">Evaluation Date:</label>
+            <input type="date" id="evalDate" name="evalDate" required>
+
+            <label for="therapistName">Therapist Name:</label>
+            <input type="text" id="therapistName" name="therapistName">
+
+            <div class="section">
+                <h2>S - Subjective</h2>
+                <label for="chiefComplaint">Chief Complaint:</label>
+                <textarea id="chiefComplaint" name="chiefComplaint"></textarea>
+                <!-- Other Subjective fields... -->
+                <label for="injuryHistory">Injury/Problem History:</label>
+                <textarea id="injuryHistory" name="injuryHistory"></textarea>
+                <label for="painDescription">Pain/Symptoms Description:</label>
+                <textarea id="painDescription" name="painDescription"></textarea>
+                <label for="medicalHistory">Medical/Sports History:</label>
+                <textarea id="medicalHistory" name="medicalHistory"></textarea>
+                <label for="playerGoals">Player Goals:</label>
+                <textarea id="playerGoals" name="playerGoals"></textarea>
+            </div>
+
+            <div class="section">
+                <h2>O - Objective</h2>
+                <label for="physicalExam">Physical Examination:</label>
+                <textarea id="physicalExam" name="physicalExam" placeholder="Include ROM, muscle strength, special tests, posture, etc."></textarea>
+                <label for="functionalTests">Functional Tests:</label>
+                <textarea id="functionalTests" name="functionalTests" placeholder="Include performance tests, balance, coordination, etc."></textarea>
+                <label for="otherObservations">Other Observations:</label>
+                <textarea id="otherObservations" name="otherObservations" placeholder="Swelling, redness, etc."></textarea>
+            </div>
+
+            <div class="section">
+                <h2>A - Assessment</h2>
+                <label for="diagnosis">Initial Diagnosis:</label>
+                <textarea id="diagnosis" name="diagnosis"></textarea>
+                <label for="contributingFactors">Contributing Factors:</label>
+                <textarea id="contributingFactors" name="contributingFactors"></textarea>
+                <label for="performanceImpact">Impact on Performance:</label>
+                <textarea id="performanceImpact" name="performanceImpact"></textarea>
+                <label for="prognosis">Prognosis:</label>
+                <textarea id="prognosis" name="prognosis"></textarea>
+            </div>
+
+            <div class="section">
+                <h2>P - Plan</h2>
+                <label for="immediateTreatment">Immediate Treatment:</label>
+                <textarea id="immediateTreatment" name="immediateTreatment" placeholder="e.g., RICE protocol"></textarea>
+                <label for="rehabProgram">Rehabilitation Program:</label>
+                <textarea id="rehabProgram" name="rehabProgram" placeholder="Include exercises, manual therapy, tools/techniques"></textarea>
+                <label for="returnToPlay">Return-to-Play Plan:</label>
+                <textarea id="returnToPlay" name="returnToPlay" placeholder="Current phase, criteria, timeline"></textarea>
+                <label for="recommendations">Recommendations:</label>
+                <textarea id="recommendations" name="recommendations" placeholder="Injury prevention, performance improvement"></textarea>
+                <label for="followUp">Follow-Up:</label>
+                <textarea id="followUp" name="followUp" placeholder="Next evaluation date, plan adjustments"></textarea>
+            </div>
+
+            <div class="section">
+                <h2>Additional Notes</h2>
+                <textarea id="additionalNotes" name="additionalNotes"></textarea>
+            </div>
+
+            <button onclick="saveSOAP()">Save SOAP</button>
+            <button onclick="exportPDF()">Export to PDF</button>
+            <button onclick="backToPlayerList()">Back to Player List</button>
+        </div>
+
+        <!-- Modal for Details -->
+        <div id="detailsModal">
+            <div id="modalContent">
+                <h3>Evaluation Details</h3>
+                <div id="detailsContent"></div>
+                <button onclick="closeModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPlayerIndex = -1;
+
+        function loadPlayerData() {
+            const savedData = JSON.parse(localStorage.getItem('sportsSoapForms') || '[]');
+            const playerFilter = document.getElementById('playerFilter').value.toLowerCase();
+            const tableBody = document.getElementById('playerTableBody');
+            tableBody.innerHTML = '';
+
+            savedData
+                .filter(data => playerFilter === '' || data.playerName.toLowerCase().includes(playerFilter))
+                .sort((a, b) => new Date(b.evalDate) - new Date(a.evalDate))
+                .forEach((data, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${data.playerName}</td>
+                        <td>${data.evalDate || 'N/A'}</td>
+                        <td><button onclick="selectPlayer(${index})">View SOAP</button></td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+        }
+
+        function addPlayer() {
+            const playerName = document.getElementById('newPlayerName').value.trim();
+            if (playerName) {
+                const savedData = JSON.parse(localStorage.getItem('sportsSoapForms') || '[]');
+                if (!savedData.some(data => data.playerName === playerName)) {
+                    savedData.push({ playerName, evalDate: '' });
+                    localStorage.setItem('sportsSoapForms', JSON.stringify(savedData));
+                    alert('Player added successfully!');
+                    document.getElementById('newPlayerName').value = '';
+                    loadPlayerData();
+                } else {
+                    alert('Player already exists!');
+                }
+            }
+        }
+
+        function selectPlayer(index) {
+            const savedData = JSON.parse(localStorage.getItem('sportsSoapForms') || '[]');
+            const player = savedData[index];
+            currentPlayerIndex = index;
+
+            document.getElementById('playerName').value = player.playerName;
+            document.getElementById('playerAge').value = player.playerAge || '';
+            document.getElementById('playerPosition').value = player.playerPosition || '';
+            document.getElementById('evalDate').value = player.evalDate || '';
+            document.getElementById('therapistName').value = player.therapistName || '';
+            document.getElementById('chiefComplaint').value = player.chiefComplaint || '';
+            document.getElementById('injuryHistory').value = player.injuryHistory || '';
+            document.getElementById('painDescription').value = player.painDescription || '';
+            document.getElementById('medicalHistory').value = player.medicalHistory || '';
+            document.getElementById('playerGoals').value = player.playerGoals || '';
+            document.getElementById('physicalExam').value = player.physicalExam || '';
+            document.getElementById('functionalTests').value = player.functionalTests || '';
+            document.getElementById('otherObservations').value = player.otherObservations || '';
+            document.getElementById('diagnosis').value = player.diagnosis || '';
+            document.getElementById('contributingFactors').value = player.contributingFactors || '';
+            document.getElementById('performanceImpact').value = player.performanceImpact || '';
+            document.getElementById('prognosis').value = player.prognosis || '';
+            document.getElementById('immediateTreatment').value = player.immediateTreatment || '';
+            document.getElementById('rehabProgram').value = player.rehabProgram || '';
+            document.getElementById('returnToPlay').value = player.returnToPlay || '';
+            document.getElementById('recommendations').value = player.recommendations || '';
+            document.getElementById('followUp').value = player.followUp || '';
+            document.getElementById('additionalNotes').value = player.additionalNotes || '';
+
+            document.getElementById('playerList').style.display = 'none';
+            document.getElementById('soapForm').style.display = 'block';
+        }
+
+        function saveSOAP() {
+            const formData = {
+                playerName: document.getElementById('playerName').value,
+                playerAge: document.getElementById('playerAge').value,
+                playerPosition: document.getElementById('playerPosition').value,
+                evalDate: document.getElementById('evalDate').value,
+                therapistName: document.getElementById('therapistName').value,
+                chiefComplaint: document.getElementById('chiefComplaint').value,
+                injuryHistory: document.getElementById('injuryHistory').value,
+                painDescription: document.getElementById('painDescription').value,
+                medicalHistory: document.getElementById('medicalHistory').value,
+                playerGoals: document.getElementById('playerGoals').value,
+                physicalExam: document.getElementById('physicalExam').value,
+                functionalTests: document.getElementById('functionalTests').value,
+                otherObservations: document.getElementById('otherObservations').value,
+                diagnosis: document.getElementById('diagnosis').value,
+                contributingFactors: document.getElementById('contributingFactors').value,
+                performanceImpact: document.getElementById('performanceImpact').value,
+                prognosis: document.getElementById('prognosis').value,
+                immediateTreatment: document.getElementById('immediateTreatment').value,
+                rehabProgram: document.getElementById('rehabProgram').value,
+                returnToPlay: document.getElementById('returnToPlay').value,
+                recommendations: document.getElementById('recommendations').value,
+                followUp: document.getElementById('followUp').value,
+                additionalNotes: document.getElementById('additionalNotes').value
+            };
+
+            if (!formData.playerName || !formData.evalDate) {
+                alert('Player Name and Evaluation Date are required!');
+                return;
+            }
+
+            const savedData = JSON.parse(localStorage.getItem('sportsSoapForms') || '[]');
+            if (currentPlayerIndex >= 0 && currentPlayerIndex < savedData.length) {
+                savedData[currentPlayerIndex] = formData;
+            } else {
+                savedData.push(formData);
+            }
+            localStorage.setItem('sportsSoapForms', JSON.stringify(savedData));
+            alert('SOAP data saved locally!');
+            backToPlayerList();
+        }
+
+        function exportPDF() {
+            const formData = {
+                playerName: document.getElementById('playerName').value,
+                playerAge: document.getElementById('playerAge').value,
+                playerPosition: document.getElementById('playerPosition').value,
+                evalDate: document.getElementById('evalDate').value,
+                therapistName: document.getElementById('therapistName').value,
+                chiefComplaint: document.getElementById('chiefComplaint').value,
+                injuryHistory: document.getElementById('injuryHistory').value,
+                painDescription: document.getElementById('painDescription').value,
+                medicalHistory: document.getElementById('medicalHistory').value,
+                playerGoals: document.getElementById('playerGoals').value,
+                physicalExam: document.getElementById('physicalExam').value,
+                functionalTests: document.getElementById('functionalTests').value,
+                otherObservations: document.getElementById('otherObservations').value,
+                diagnosis: document.getElementById('diagnosis').value,
+                contributingFactors: document.getElementById('contributingFactors').value,
+                performanceImpact: document.getElementById('performanceImpact').value,
+                prognosis: document.getElementById('prognosis').value,
+                immediateTreatment: document.getElementById('immediateTreatment').value,
+                rehabProgram: document.getElementById('rehabProgram').value,
+                returnToPlay: document.getElementById('returnToPlay').value,
+                recommendations: document.getElementById('recommendations').value,
+                followUp: document.getElementById('followUp').value,
+                additionalNotes: document.getElementById('additionalNotes').value
+            };
+
+            let html = `
+                <html><head><title>SOAP Report - Al-Akhdoud Club</title>
+                <style>body { font-family: Arial, sans-serif; margin: 20px; direction: ltr; }
+                .header { text-align: center; } h2 { color: #2c3e50; }
+                p { margin: 5px 0; }</style></head><body>
+                <div class="header"><img src="logo.png" alt="Al-Akhdoud Logo" width="150"><h2>SOAP Report</h2></div>
+                <p><strong>Player Name:</strong> ${formData.playerName}</p>
+                <p><strong>Age:</strong> ${formData.playerAge}</p>
+                <p><strong>Position:</strong> ${formData.playerPosition}</p>
+                <p><strong>Evaluation Date:</strong> ${formData.evalDate}</p>
+                <p><strong>Therapist Name:</strong> ${formData.therapistName}</p>
+                <h3>Subjective</h3>
+                <p><strong>Chief Complaint:</strong> ${formData.chiefComplaint}</p>
+                <p><strong>Injury History:</strong> ${formData.injuryHistory}</p>
+                <p><strong>Pain Description:</strong> ${formData.painDescription}</p>
+                <p><strong>Medical/Sports History:</strong> ${formData.medicalHistory}</p>
+                <p><strong>Player Goals:</strong> ${formData.playerGoals}</p>
+                <h3>Objective</h3>
+                <p><strong>Physical Exam:</strong> ${formData.physicalExam}</p>
+                <p><strong>Functional Tests:</strong> ${formData.functionalTests}</p>
+                <p><strong>Other Observations:</strong> ${formData.otherObservations}</p>
+                <h3>Assessment</h3>
+                <p><strong>Diagnosis:</strong> ${formData.diagnosis}</p>
+                <p><strong>Contributing Factors:</strong> ${formData.contributingFactors}</p>
+                <p><strong>Impact on Performance:</strong> ${formData.performanceImpact}</p>
+                <p><strong>Prognosis:</strong> ${formData.prognosis}</p>
+                <h3>Plan</h3>
+                <p><strong>Immediate Treatment:</strong> ${formData.immediateTreatment}</p>
+                <p><strong>Rehabilitation Program:</strong> ${formData.rehabProgram}</p>
+                <p><strong>Return-to-Play Plan:</strong> ${formData.returnToPlay}</p>
+                <p><strong>Recommendations:</strong> ${formData.recommendations}</p>
+                <p><strong>Follow-Up:</strong> ${formData.followUp}</p>
+                <p><strong>Additional Notes:</strong> ${formData.additionalNotes}</p>
+                </body></html>
+            `;
+            const win = window.open('', '', 'width=800,height=600');
+            win.document.write(html);
+            win.document.close();
+            win.print();
+        }
+
+        function backToPlayerList() {
+            document.getElementById('soapForm').style.display = 'none';
+            document.getElementById('playerList').style.display = 'block';
+            loadPlayerData();
+        }
+
+        document.getElementById('playerFilter').addEventListener('input', loadPlayerData);
+        window.onload = loadPlayerData;
+    </script>
+</body>
+</html>
