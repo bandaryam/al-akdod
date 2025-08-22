@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Physical Therapy Log - Al-Akhdood Club</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jsPDF and html2canvas for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        window.firebase = {
+            initializeApp,
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged,
+            getFirestore,
+            doc,
+            getDoc,
+            addDoc,
+            setDoc,
+            updateDoc,
+            deleteDoc,
+            onSnapshot,
+            collection,
+            query,
+            where,
+            orderBy,
+            serverTimestamp
+        };
+    </script>
+
+    <!-- Chosen Palette: Professional Serene Grey-Blue -->
+    <!-- Application Structure Plan: This SPA is structured as a single, scrollable form for daily physical therapy logs. It sections content logically for Player Information, Daily Assessment, Therapeutic Interventions, Progress Notes, and Plan for Next Session, plus an Overall Assessment. A "Past Logs" section is at the top, offering a collapsible list of shared logs for team review. When a past log is selected, its details populate the main form. The form supports new entries and now includes a PDF export feature for the current form's content. Firebase Firestore is used for public data storage, accessible to authenticated users across devices. The "Past Logs" display has been enhanced to show key details including injury information directly. -->
+    <!-- Visualization & Content Choices: 
+        - Player Information (Text Inputs): Capture essential log details.
+        - Current Injury/Condition (Textarea): Describe primary health concern.
+        - Pain Level (Interactive Slider): Quantify subjective pain (1-10) with dynamic display.
+        - Muscle Strength (Interactive Slider): Quantify subjective strength (1-5) with dynamic display.
+        - Therapeutic Interventions & Progress Notes (Textareas): Document treatment specifics and observations.
+        - Overall Daily Assessment (Interactive Radio Buttons): Provide quick, categorized summary.
+        - Past Logs List (HTML/JS): Organize and navigate historical team data. Enhanced to show Player Name, Date, Overall Assessment, Current Injury/Condition, and Pain Level for immediate insight.
+        - Export to PDF Button (New Feature): Allows the current form's content to be exported as a PDF for archiving or sharing outside the app, leveraging html2canvas and jsPDF for client-side rendering.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.5) sepia(1) saturate(5) hue-rotate(180deg); /* Style for date/datetime picker icon */
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white rounded-xl shadow-lg p-6 md:p-8 w-full max-w-4xl border border-slate-200" id="log-content-to-pdf">
+        <div class="flex flex-col items-center mb-8">
+            <img src="uploaded:LOGO.PNG.png-db8100e6-5744-4ae2-9535-7167b035a8ba" alt="Al-Akhdood Club Logo" class="h-20 w-20 mb-4 rounded-full object-contain" onerror="this.onerror=null;this.src='https://placehold.co/80x80/E2E8F0/475569?text=Logo';">
+            <h1 class="text-3xl font-bold text-slate-900 mb-2 text-center">Daily Physical Therapy Log</h1>
+            <p class="text-lg text-slate-600 text-center">Al-Akhdood Club - Physical Therapy Department</p>
+            <p id="user-id-display" class="text-sm text-slate-500 mt-2">Loading User ID...</p>
+        </div>
+
+        <!-- Past Logs Section -->
+        <div class="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-8">
+            <h2 class="text-xl font-semibold text-slate-800 mb-4 pb-3 border-b border-slate-300 cursor-pointer flex justify-between items-center" id="toggle-past-logs">
+                Past Logs (Shared Team Data)
+                <span id="toggle-icon" class="text-slate-500 transform rotate-0 transition-transform duration-300">▼</span>
+            </h2>
+            <div id="past-logs-content" class="space-y-4 max-h-96 overflow-y-auto hidden">
+                <div id="loading-spinner" class="flex justify-center items-center py-4">
+                    <div class="loading-spinner"></div>
+                </div>
+                <div id="past-logs-list" class="space-y-3">
+                    <!-- Past logs will be rendered here -->
+                    <p class="text-slate-600 text-center" id="no-past-logs" style="display: none;">No past logs found. Start by adding a new log!</p>
+                </div>
+            </div>
+        </div>
+
+        <form id="daily-log-form" class="space-y-8">
+            <!-- Player Information -->
+            <div class="bg-slate-50 p-6 rounded-lg border border-slate-200">
+                <h2 class="text-xl font-semibold text-slate-800 mb-5 pb-3 border-b border-slate-300">Player Information</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="playerName" class="block text-sm font-medium text-slate-700 mb-1">Player Name</label>
+                        <input type="text" id="playerName" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm" required>
+                    </div>
+                    <div>
+                        <label for="logDate" class="block text-sm font-medium text-slate-700 mb-1">Date</label>
+                        <input type="date" id="logDate" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm" required>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="physicalTherapistName" class="block text-sm font-medium text-slate-700 mb-1">Physical Therapist Name</label>
+                        <input type="text" id="physicalTherapistName" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Daily Assessment -->
+            <div class="bg-slate-50 p-6 rounded-lg border border-slate-200">
+                <h2 class="text-xl font-semibold text-slate-800 mb-5 pb-3 border-b border-slate-300">Daily Assessment</h2>
+                <div class="space-y-6">
+                    <div>
+                        <label for="currentInjury" class="block text-sm font-medium text-slate-700 mb-1">Current Injury/Condition</label>
+                        <textarea id="currentInjury" rows="2" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm" required></textarea>
+                    </div>
+                    <div>
+                        <label for="painLevel" class="block text-sm font-medium text-slate-700 mb-1">Pain Level (1-10, 1 = no pain, 10 = severe): <span id="painLevelValue" class="font-bold text-blue-600">5</span></label>
+                        <input type="range" id="painLevel" min="1" max="10" value="5" class="mt-1 block w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="symptomsToday" class="block text-sm font-medium text-slate-700 mb-1">Symptoms Today (e.g., swelling, stiffness, discomfort)</label>
+                        <textarea id="symptomsToday" rows="3" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm"></textarea>
+                    </div>
+                    <div>
+                        <label for="rangeOfMotion" class="block text-sm font-medium text-slate-700 mb-1">Range of Motion (ROM) (e.g., improved, limited, same as previous)</label>
+                        <input type="text" id="rangeOfMotion" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="muscleStrength" class="block text-sm font-medium text-slate-700 mb-1">Muscle Strength (rated 1-5, 1 = weak, 5 = excellent): <span id="muscleStrengthValue" class="font-bold text-blue-600">3</span></label>
+                        <input type="range" id="muscleStrength" min="1" max="5" value="3" class="mt-1 block w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="functionalStatus" class="block text-sm font-medium text-slate-700 mb-1">Functional Status (e.g., ability to walk, run, or perform specific movements)</label>
+                        <textarea id="functionalStatus" rows="3" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Therapeutic Interventions -->
+            <div class="bg-slate-50 p-6 rounded-lg border border-slate-200">
+                <h2 class="text-xl font-semibold text-slate-800 mb-5 pb-3 border-b border-slate-300">Therapeutic Interventions</h2>
+                <div class="space-y-6">
+                    <div>
+                        <label for="exercisesPerformed" class="block text-sm font-medium text-slate-700 mb-1">Exercises Performed (list exercises, repetitions, and sets)</label>
+                        <textarea id="exercisesPerformed" rows="4" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm"></textarea>
+                    </div>
+                    <div>
+                        <label for="techniquesApplied" class="block text-sm font-medium text-slate-700 mb-1">Techniques Applied (e.g., manual therapy, ice/heat application, ultrasound)</label>
+                        <textarea id="techniquesApplied" rows="3" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm"></textarea>
+                    </div>
+                    <div>
+                        <label for="sessionDuration" class="block text-sm font-medium text-slate-700 mb-1">Duration of Session (in minutes)</label>
+                        <input type="number" id="sessionDuration" min="0" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Notes -->
+            <div class="bg-slate-50 p-6 rounded-lg border border-slate-200">
+                <h2 class="text-xl font-semibold text-slate-800 mb-5 pb-3 border-b border-slate-300">Progress Notes</h2>
+                <div class="space-y-6">
+                    <div>
+                        <label for="improvementsNoted" class="block text-sm font-medium text-slate-700 mb-1">Improvements Noted (e.g., reduced pain, increased ROM)</label>
+                        <textarea id="improvementsNoted" rows="3" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm"></textarea>
+                    </div>
+                    <div>
+                        <label for="challengesConcerns" class="block text-sm font-medium text-slate-700 mb-1">Challenges/Concerns (e.g., persistent swelling, discomfort during exercise)</label>
+                        <textarea id="challengesConcerns" rows="3" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm"></textarea>
+                    </div>
+                    <div>
+                        <label for="playerFeedback" class="block text-sm font-medium text-slate-700 mb-1">Player Feedback (e.g., how they feel, any new symptoms)</label>
+                        <textarea id="playerFeedback" rows="3" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plan for Next Session -->
+            <div class="bg-slate-50 p-6 rounded-lg border border-slate-200">
+                <h2 class="text-xl font-semibold text-slate-800 mb-5 pb-3 border-b border-slate-300">Plan for Next Session</h2>
+                <div class="space-y-6">
+                    <div>
+                        <label for="goalsForTomorrow" class="block text-sm font-medium text-slate-700 mb-1">Goals for Tomorrow (e.g., increase reps, introduce new exercise)</label>
+                        <textarea id="goalsForTomorrow" rows="3" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm"></textarea>
+                    </div>
+                    <div>
+                        <label for="recommendations" class="block text-sm font-medium text-slate-700 mb-1">Recommendations (e.g., rest, modify training, continue ice therapy)</label>
+                        <textarea id="recommendations" rows="3" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overall Daily Assessment -->
+            <div class="bg-slate-50 p-6 rounded-lg border border-slate-200">
+                <h2 class="text-xl font-semibold text-slate-800 mb-5 pb-3 border-b border-slate-300">Overall Daily Assessment</h2>
+                <div class="flex flex-wrap gap-4">
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="overallAssessment" value="Excellent" class="form-radio text-blue-600 h-4 w-4">
+                        <span class="ml-2 text-slate-700">Excellent</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="overallAssessment" value="Good" class="form-radio text-blue-600 h-4 w-4">
+                        <span class="ml-2 text-slate-700">Good</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="overallAssessment" value="Stable" class="form-radio text-blue-600 h-4 w-4">
+                        <span class="ml-2 text-slate-700">Stable</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="overallAssessment" value="Needs Improvement" class="form-radio text-blue-600 h-4 w-4">
+                        <span class="ml-2 text-slate-700">Needs Improvement</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="overallAssessment" value="Poor" class="form-radio text-blue-600 h-4 w-4">
+                        <span class="ml-2 text-slate-700">Poor</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Signature and Date -->
+            <div class="bg-slate-50 p-6 rounded-lg border border-slate-200">
+                <h2 class="text-xl font-semibold text-slate-800 mb-5 pb-3 border-b border-slate-300">Signature & Date</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="ptSignature" class="block text-sm font-medium text-slate-700 mb-1">Physical Therapist Signature</label>
+                        <input type="text" id="ptSignature" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm" required>
+                    </div>
+                    <div>
+                        <label for="signatureDate" class="block text-sm font-medium text-slate-700 mb-1">Date</label>
+                        <input type="date" id="signatureDate" class="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm" required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center pt-4">
+                <button type="button" id="exportPdfBtn" class="bg-red-600 text-white font-semibold py-3 px-8 rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all">Export to PDF</button>
+                <button type="submit" class="bg-blue-600 text-white font-semibold py-3 px-8 rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all">Save Daily Log</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="alert-message" class="fixed top-5 right-5 bg-green-500 text-white py-2 px-5 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300">
+        Log saved successfully!
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // Ensure __app_id, __firebase_config, __initial_auth_token are available from the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; 
+
+        let db;
+        let auth;
+        let currentUserId = null;
+        let unsubscribeFromLogs = null; // To manage the Firestore listener
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const dailyLogForm = document.getElementById('daily-log-form');
+            const painLevelSlider = document.getElementById('painLevel');
+            const painLevelValue = document.getElementById('painLevelValue');
+            const muscleStrengthSlider = document.getElementById('muscleStrength');
+            const muscleStrengthValue = document.getElementById('muscleStrengthValue');
+            const alertMessage = document.getElementById('alert-message');
+            const userIdDisplay = document.getElementById('user-id-display');
+            const togglePastLogsBtn = document.getElementById('toggle-past-logs');
+            const pastLogsContent = document.getElementById('past-logs-content');
+            const toggleIcon = document.getElementById('toggle-icon');
+            const pastLogsList = document.getElementById('past-logs-list');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const noPastLogsMessage = document.getElementById('no-past-logs');
+            const exportPdfBtn = document.getElementById('exportPdfBtn');
+
+            // Initialize Firebase
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        currentUserId = user.uid;
+                        userIdDisplay.textContent = `User ID: ${currentUserId}`;
+                        loadPastLogs(); // Load logs once user is authenticated
+                    } else {
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (error) {
+                            console.error("Firebase Auth Error:", error);
+                            userIdDisplay.textContent = "Auth Error!";
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Firebase Initialization Error:", error);
+                userIdDisplay.textContent = "Firebase Init Error!";
+            }
+
+            // Set default date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('logDate').value = today;
+            document.getElementById('signatureDate').value = today;
+
+            // Update pain level value display
+            painLevelSlider.addEventListener('input', (event) => {
+                painLevelValue.textContent = event.target.value;
+            });
+
+            // Update muscle strength value display
+            muscleStrengthSlider.addEventListener('input', (event) => {
+                muscleStrengthValue.textContent = event.target.value;
+            });
+
+            // Toggle past logs section visibility
+            togglePastLogsBtn.addEventListener('click', () => {
+                pastLogsContent.classList.toggle('hidden');
+                toggleIcon.classList.toggle('rotate-180');
+            });
+
+            // Function to show alert message
+            const showAlert = (message, isError = false) => {
+                alertMessage.textContent = message;
+                alertMessage.className = `fixed top-5 right-5 py-2 px-5 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 ${isError ? 'bg-red-500' : 'bg-green-500'} text-white`;
+                alertMessage.classList.remove('translate-x-full');
+                setTimeout(() => {
+                    alertMessage.classList.add('translate-x-full');
+                }, 3000);
+            };
+
+            // Function to load past logs from Firestore (from public shared collection)
+            const loadPastLogs = () => {
+                if (unsubscribeFromLogs) {
+                    unsubscribeFromLogs(); // Unsubscribe from previous listener if exists
+                }
+                if (!db || !currentUserId) return;
+
+                loadingSpinner.style.display = 'flex';
+                noPastLogsMessage.style.display = 'none';
+                pastLogsList.innerHTML = '';
+
+                // Changed collection path to public for shared access
+                const q = query(collection(db, `artifacts/${appId}/public/data/dailyLogs`), orderBy("timestamp", "desc"));
+                
+                unsubscribeFromLogs = onSnapshot(q, (snapshot) => {
+                    pastLogsList.innerHTML = ''; // Clear existing logs
+                    loadingSpinner.style.display = 'none';
+
+                    if (snapshot.empty) {
+                        noPastLogsMessage.style.display = 'block';
+                        return;
+                    }
+
+                    snapshot.forEach((doc) => {
+                        const log = doc.data();
+                        const logId = doc.id;
+                        const logItem = document.createElement('div');
+                        logItem.className = 'bg-white p-3 rounded-md border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors';
+                        logItem.innerHTML = `
+                            <p class="font-semibold text-slate-800">Player: ${log.playerName || 'N/A'} (Date: ${log.logDate || 'N/A'})</p>
+                            <p class="text-sm text-slate-600">Overall Status: ${log.overallAssessment || 'N/A'}</p>
+                            <p class="text-sm text-slate-600">**Injury/Condition:** ${log.currentInjury || 'N/A'} (Pain: ${log.painLevel || 'N/A'}/10)</p>
+                        `;
+                        logItem.addEventListener('click', () => populateFormWithLog(log));
+                        pastLogsList.appendChild(logItem);
+                    });
+                }, (error) => {
+                    console.error("Error fetching past logs:", error);
+                    loadingSpinner.style.display = 'none';
+                    showAlert("Failed to load past logs.", true);
+                });
+            };
+
+            // Function to populate the form with selected log data
+            const populateFormWithLog = (log) => {
+                // Populate text/date inputs
+                document.getElementById('playerName').value = log.playerName || '';
+                document.getElementById('logDate').value = log.logDate || '';
+                document.getElementById('physicalTherapistName').value = log.physicalTherapistName || '';
+                document.getElementById('currentInjury').value = log.currentInjury || '';
+                document.getElementById('symptomsToday').value = log.symptomsToday || '';
+                document.getElementById('rangeOfMotion').value = log.rangeOfMotion || '';
+                document.getElementById('functionalStatus').value = log.functionalStatus || '';
+                document.getElementById('exercisesPerformed').value = log.exercisesPerformed || '';
+                document.getElementById('techniquesApplied').value = log.techniquesApplied || '';
+                document.getElementById('sessionDuration').value = log.sessionDuration || '';
+                document.getElementById('improvementsNoted').value = log.improvementsNoted || '';
+                document.getElementById('challengesConcerns').value = log.challengesConcerns || '';
+                document.getElementById('playerFeedback').value = log.playerFeedback || '';
+                document.getElementById('goalsForTomorrow').value = log.goalsForTomorrow || '';
+                document.getElementById('recommendations').value = log.recommendations || '';
+                document.getElementById('ptSignature').value = log.ptSignature || '';
+                document.getElementById('signatureDate').value = log.signatureDate || '';
+
+                // Populate sliders
+                painLevelSlider.value = log.painLevel || 5;
+                painLevelValue.textContent = log.painLevel || 5;
+                muscleStrengthSlider.value = log.muscleStrength || 3;
+                muscleStrengthValue.textContent = log.muscleStrength || 3;
+
+                // Populate radio buttons
+                const overallAssessmentRadios = document.getElementsByName('overallAssessment');
+                overallAssessmentRadios.forEach(radio => {
+                    radio.checked = (radio.value === log.overallAssessment);
+                });
+
+                showAlert("Log loaded for review. Create a new log or save changes.", false);
+            };
+
+            // PDF Export Functionality
+            exportPdfBtn.addEventListener('click', async () => {
+                showAlert("Generating PDF...", false);
+                const content = document.getElementById('log-content-to-pdf'); // The div containing the form
+
+                // Temporarily hide parts not relevant for PDF (like the alert and the export button itself)
+                const originalAlertDisplay = alertMessage.style.display;
+                const originalExportBtnDisplay = exportPdfBtn.style.display;
+                const originalPastLogsDisplay = pastLogsContent.style.display;
+
+                alertMessage.style.display = 'none';
+                exportPdfBtn.style.display = 'none';
+                pastLogsContent.style.display = 'none'; // Also hide past logs section for a cleaner PDF
+
+                // Use a slight delay to ensure CSS updates before capture
+                setTimeout(async () => {
+                    const canvas = await html2canvas(content, { 
+                        scale: 2, // Increase scale for better quality
+                        useCORS: true // Required if logo is from a different domain
+                    });
+                    const imgData = canvas.toDataURL('image/png');
+                    const pdf = new window.jspdf.jsPDF({
+                        orientation: 'portrait',
+                        unit: 'px',
+                        format: 'a4'
+                    });
+
+                    const imgWidth = pdf.internal.pageSize.getWidth();
+                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                    let heightLeft = imgHeight;
+                    let position = 0;
+
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pdf.internal.pageSize.getHeight();
+
+                    while (heightLeft >= 0) {
+                        position = heightLeft - imgHeight;
+                        pdf.addPage();
+                        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                        heightLeft -= pdf.internal.pageSize.getHeight();
+                    }
+
+                    pdf.save('Daily_PT_Log.pdf');
+                    showAlert("PDF generated successfully!");
+
+                    // Restore hidden elements
+                    alertMessage.style.display = originalAlertDisplay;
+                    exportPdfBtn.style.display = originalExportBtnDisplay;
+                    pastLogsContent.style.display = originalPastLogsDisplay;
+
+                }, 50); // Small delay to allow CSS to render
+            });
+
+
+            // Form submission handler
+            dailyLogForm.addEventListener('submit', async (event) => {
+                event.preventDefault(); // Prevent actual form submission
+
+                if (!db || !currentUserId) {
+                    showAlert("Authentication not ready. Please wait.", true);
+                    return;
+                }
+
+                const formData = new FormData(dailyLogForm);
+                const logData = {};
+                for (let [key, value] of formData.entries()) {
+                    logData[key] = value;
+                }
+                
+                const overallAssessment = dailyLogForm.querySelector('input[name="overallAssessment"]:checked');
+                if (overallAssessment) {
+                    logData['overallAssessment'] = overallAssessment.value;
+                } else {
+                    logData['overallAssessment'] = ''; 
+                }
+
+                // Add server timestamp for ordering
+                logData['timestamp'] = serverTimestamp();
+
+                try {
+                    // Changed collection path to public for shared access
+                    await addDoc(collection(db, `artifacts/${appId}/public/data/dailyLogs`), logData);
+                    showAlert("Log saved successfully!");
+                    dailyLogForm.reset();
+                    document.getElementById('logDate').value = today; // Reset date to today
+                    document.getElementById('signatureDate').value = today; // Reset date to today
+                    painLevelValue.textContent = painLevelSlider.value; // Reset slider display
+                    muscleStrengthValue.textContent = muscleStrengthSlider.value; // Reset slider display
+                    // No need to call loadPastLogs explicitly, onSnapshot will handle real-time update
+                } catch (error) {
+                    console.error("Error saving daily log:", error);
+                    showAlert("Failed to save log. Please try again.", true);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
